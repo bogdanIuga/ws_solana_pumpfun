@@ -2,9 +2,19 @@
 const WebSocket = require('ws');
 const express = require('express');
 
+const fs = require('fs');
+const path = require('path');
+
 const app = express();
 const port = 3000;
 const ws = new WebSocket('wss://pumpportal.fun/api/data');
+
+//CSV
+const csvFilePath = path.join(__dirname, 'payloads.csv');
+if (!fs.existsSync(csvFilePath)) {
+    const headers = ['date', 'signature', 'mint', 'traderPublicKey', 'txType', 'initialBuy', 'bondingCurveKey', 'vTokensInBondingCurve', 'vSolInBondingCurve', 'marketCapSol', 'link'];
+    fs.writeFileSync(csvFilePath, headers.join(',') + '\n');
+}
 
 const tokensToWatch = [];
 
@@ -33,12 +43,38 @@ ws.on('open', function open() {
 });
 
 ws.on('message', function message(data) {
-    const payload = JSON.parse(data);
-   
-    if (payload.marketCapSol < 35){
-        console.log(payload);
-        //tokensToWatch.push(payload.mint);
-        console.log(`https://photon-sol.tinyastro.io/en/lp/${payload.mint}?handle=475121e34ecac6acea2bc`)
+    try {
+        const payload = JSON.parse(data);
+        const date = new Date().toISOString();
+
+        const csvRow = [
+            date,
+            payload.signature,
+            payload.mint,
+            payload.traderPublicKey,
+            payload.txType,
+            payload.initialBuy,
+            payload.bondingCurveKey,
+            payload.vTokensInBondingCurve,
+            payload.vSolInBondingCurve,
+            payload.marketCapSol,
+            `https://photon-sol.tinyastro.io/en/lp/${payload.mint}`
+        ].join(',');
+
+        if (!payload.signature)
+            return;
+
+        // Append the row to the CSV file
+        fs.appendFileSync(csvFilePath, csvRow + '\n');
+        console.log(`${date}: wrote to CSV`)
+
+        // if (payload.marketCapSol < 35) {
+        //     console.log(payload);
+        //     //tokensToWatch.push(payload.mint);
+        //     console.log(`https://photon-sol.tinyastro.io/en/lp/${payload.mint}?handle=475121e34ecac6acea2bc`)
+        // }
+    } catch (err) {
+        console.error(err);
     }
 });
 
